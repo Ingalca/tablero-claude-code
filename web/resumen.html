@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resumen · Sesiones Claude</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='7' width='3' height='7' rx='1' fill='%23eb6834'/><rect x='7' y='3' width='3' height='11' rx='1' fill='%232a78d6'/><rect x='12' y='5' width='3' height='9' rx='1' fill='%23eb6834'/></svg>">
+<style>
+  /* Los mismos tonos que el tablero: Claude trabajando es azul en las dos páginas; vos, naranja. */
+  :root {
+    --fondo: #1e1f22; --cabecera: #191a1d; --panel: #26282c; --tab: #2f3237; --borde: #393c42;
+    --texto: #dfe1e5; --tenue: #8c939d; --apagado: #5c636d; --grilla: #303339; --base: #4a4f57; --resalte: rgba(255, 255, 255, 0.05);
+    --vos: #d95926; --claude: #3987e5; --espera: #e8a33d; --espera-fondo: rgba(232, 163, 61, 0.09);
+    --barra: #2b2d42; --barra-texto: #c9cbe0; --carpeta: #c09553;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --sans: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --fondo: #f1f2f4; --cabecera: #ffffff; --panel: #ffffff; --tab: #f6f7f9; --borde: #d9dde3;
+      --texto: #1b1f24; --tenue: #5b6470; --apagado: #98a0ab; --grilla: #eceef1; --base: #c3c8d0; --resalte: rgba(0, 0, 0, 0.035);
+      --vos: #eb6834; --claude: #2a78d6; --espera: #c27400; --espera-fondo: rgba(242, 163, 58, 0.13);
+      --barra: #e7e9f2; --barra-texto: #3b3f55; --carpeta: #b07d2f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.4 var(--sans); padding-bottom: 44px; }
+  a { color: inherit; }
+
+  .titulo { display: flex; align-items: center; gap: 18px; padding: 10px 20px; background: var(--cabecera); border-bottom: 1px solid var(--borde); }
+  .titulo h1 { font: 600 15px var(--mono); margin: 0; color: var(--tenue); white-space: nowrap; }
+  .titulo h1 b { color: var(--texto); }
+  .titulo h1 .sep { color: var(--apagado); padding: 0 6px; }
+  .boton {
+    display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--sans); color: var(--texto); background: var(--tab);
+    border: 1px solid var(--borde); border-radius: 6px; padding: 5px 12px; text-decoration: none; cursor: pointer; white-space: nowrap;
+  }
+  .boton:hover { border-color: var(--tenue); }
+  .titulo .boton { margin-left: auto; }
+
+  /* Barra de herramientas: rangos, fechas, máquinas, CSV */
+  .herramientas { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 20px; border-bottom: 1px solid var(--borde); }
+  #rangos { display: inline-flex; border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; }
+  #rangos button { font: 13px var(--mono); color: var(--tenue); background: var(--panel); border: none; border-right: 1px solid var(--borde); padding: 5px 12px; cursor: pointer; }
+  #rangos button:last-child { border-right: none; }
+  #rangos button:hover { color: var(--texto); }
+  #rangos button[aria-pressed="true"] { color: var(--texto); background: var(--tab); box-shadow: inset 0 -2px 0 var(--claude); font-weight: 600; }
+  .fechas { font: 13px var(--mono); color: var(--tenue); display: flex; gap: 8px; align-items: center; }
+  .fechas input { font: 13px var(--mono); color: var(--texto); background: var(--panel); border: 1px solid var(--borde); border-radius: 4px; padding: 3px 6px; color-scheme: light dark; }
+  #filtro-maquinas { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font: 13px var(--mono); color: var(--tenue); }
+  #filtro-maquinas[hidden] { display: none; }
+  #filtro-maquinas label { display: inline-flex; align-items: center; gap: 6px; color: var(--texto); cursor: pointer; }
+  #filtro-maquinas .caida { color: var(--espera); }
+  .punto-maq { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--maq); vertical-align: middle; }
+  .herramientas .boton { margin-left: auto; font-size: 13px; padding: 4px 10px; }
+
+  .contenido { padding: 16px 20px; }
+  #aviso .info { cursor: help; color: var(--tenue); }
+  #aviso { display: none; background: var(--espera-fondo); border: 1px solid var(--espera); border-radius: 6px; padding: 9px 14px; margin-bottom: 14px; }
+
+  /* Números del rango */
+  #tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--panel); border: 1px solid var(--borde); border-radius: 6px; padding: 10px 14px; }
+  .tile .k { font: 11px var(--mono); color: var(--tenue); letter-spacing: 0.1em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+  .tile .k i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .tile .v { font: 600 26px var(--mono); margin: 4px 0 2px; }
+  .tile .s { font: 12px var(--mono); color: var(--tenue); }
+
+  /* Bloques con cabecera tipo pestaña */
+  .bloque { background: var(--panel); border: 1px solid var(--borde); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+  .bloque .cab { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; padding: 8px 14px; background: var(--tab); border-bottom: 1px solid var(--borde); }
+  .bloque .cab h2 { font: 600 14px var(--mono); margin: 0; }
+  .leyenda { display: flex; gap: 14px; font: 12px var(--mono); color: var(--tenue); }
+  .leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .cab .der { margin-left: auto; font: 12px var(--mono); color: var(--tenue); }
+  #grafico { position: relative; padding: 6px 10px 0; }
+  #grafico svg { display: block; width: 100%; }
+  #grafico text { fill: var(--tenue); font: 11px var(--mono); }
+  #grafico path { pointer-events: none; } /* que el mouse sobre una barra también muestre el detalle */
+  #tip {
+    position: fixed; z-index: 10; pointer-events: none; display: none; background: var(--panel); border: 1px solid var(--borde); border-radius: 6px;
+    padding: 8px 10px; font: 12.5px/1.6 var(--mono); color: var(--tenue); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); white-space: nowrap;
+  }
+  #tip strong { color: var(--texto); }
+  #tip i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+
+  /* Tablas */
+  .tabla { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font: 13.5px var(--mono); }
+  th { font: 11px var(--mono); color: var(--tenue); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; text-align: right; padding: 8px 12px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+  td { text-align: right; padding: 7px 12px; border-bottom: 1px solid var(--grilla); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  td.cero { color: var(--apagado); }
+  td.proy { font: 600 15px var(--sans); }
+  td.proy svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 8px; }
+  td.proy .punto-maq { margin-left: 8px; }
+  tr.total td { font-weight: 700; border-bottom: none; background: var(--resalte); }
+  th.barras, td.barras { text-align: left; width: 22%; min-width: 140px; }
+  .pista { height: 5px; margin: 2px 0; }
+  .pista span { display: block; height: 100%; border-radius: 0 3px 3px 0; }
+  .vacio { color: var(--tenue); padding: 12px 14px; }
+
+  /* Barra de estado: desde cuándo hay datos */
+  .status {
+    position: fixed; left: 0; right: 0; bottom: 0; min-height: 30px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px;
+    padding: 4px 16px; background: var(--barra); color: var(--barra-texto); font: 12px var(--mono);
+  }
+  .status .w { color: var(--espera); margin-left: auto; }
+
+  @media (max-width: 560px) {
+    .titulo, .herramientas, .contenido { padding-left: 16px; padding-right: 16px; }
+    .herramientas .boton { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="titulo">
+  <h1>claude <b>sessions</b><span class="sep">/</span><b>resumen</b></h1>
+  <a class="boton" href="/">← Tablero</a>
+</header>
+<div class="herramientas">
+  <div id="rangos"></div>
+  <div class="fechas">desde <input type="date" id="desde"> hasta <input type="date" id="hasta"></div>
+  <div id="filtro-maquinas" hidden></div>
+  <button class="boton" id="csv" type="button">Exportar CSV</button>
+</div>
+<div class="contenido">
+  <div id="aviso"></div>
+  <div id="tiles"></div>
+  <section class="bloque" id="bloque-grafico">
+    <div class="cab">
+      <h2 id="titulo-grafico">por día</h2>
+      <div class="leyenda"><span><i style="background:var(--vos)"></i>vos</span><span><i style="background:var(--claude)"></i>claude trabajando</span></div>
+      <span class="der" id="unidad-grafico"></span>
+    </div>
+    <div id="grafico"><div id="tip"></div></div>
+  </section>
+  <section class="bloque">
+    <div class="cab"><h2>por proyecto</h2><span class="der">tiempos en h:mm</span></div>
+    <div class="tabla" id="tabla-proyectos"></div>
+  </section>
+  <section class="bloque">
+    <div class="cab"><h2 id="titulo-detalle">detalle por día</h2></div>
+    <div class="tabla" id="tabla-dias"></div>
+  </section>
+</div>
+<footer class="status" id="fuentes"></footer>
+
+<script>
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const dos = (n) => String(n).padStart(2, '0');
+const diaDe = (d) => `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+const fecha = (dia) => { const [a, m, d] = dia.split('-'); return `${d}/${m}`; };
+const diaSemana = (dia) => new Date(dia + 'T12:00').toLocaleDateString('es', { weekday: 'short' });
+const ICONO_CARPETA = '<svg viewBox="0 0 16 16"><path style="fill:var(--carpeta)" d="M1.5 3h4.2l1.3 1.5h7.5v8.5h-13z"/></svg>';
+
+function rangos() {
+  const hoy = new Date();
+  const d = (delta) => { const x = new Date(hoy); x.setDate(x.getDate() + delta); return diaDe(x); };
+  const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  const iniAnt = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const finAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+  return [
+    ['Hoy', d(0), d(0)],
+    ['Ayer', d(-1), d(-1)],
+    ['7 días', d(-6), d(0)],
+    ['30 días', d(-29), d(0)],
+    ['Este mes', diaDe(ini), d(0)],
+    ['Mes anterior', diaDe(iniAnt), diaDe(finAnt)],
+  ];
+}
+
+// Duraciones: "6 h 10 min" en las tarjetas, "6:10" en las tablas.
+function largo(ms) {
+  const m = Math.round((ms ?? 0) / 60e3);
+  if (m < 60) return `${m} min`;
+  return m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`;
+}
+function hhmm(ms) {
+  const m = Math.round((ms ?? 0) / 60e3);
+  return `${Math.floor(m / 60)}:${dos(m % 60)}`;
+}
+// 252,2 k y 1,4 M (el formato compacto en castellano dice "mil", que se lee peor en una tabla).
+const compacto = (n = 0) => {
+  const con = (v, sufijo) => `${v.toLocaleString('es', { maximumFractionDigits: 1 })} ${sufijo}`;
+  if (n >= 999950) return con(n / 1e6, 'M');
+  if (n >= 999.95) return con(n / 1e3, 'k');
+  return n.toLocaleString('es');
+};
+
+let estado = { desde: null, hasta: null, datos: null };
+
+// Máquinas: el mismo color que en el tablero (orden alfabético de los nombres).
+const COLORES_MAQUINA = ['#5b4bc4', '#b5326a', '#1d7f86', '#8a5a2b'];
+let coloresMaquina = new Map();
+const colorDe = (m) => coloresMaquina.get(m) ?? COLORES_MAQUINA[0];
+const punto = (m) => `<span class="punto-maq" style="--maq:${colorDe(m)}" title="${esc(m)}"></span>`;
+
+// Las máquinas que ocultaste quedan guardadas en este navegador. Se guardan las ocultas y no las
+// elegidas: una máquina nueva aparece incluida en vez de quedar oculta sin que te des cuenta.
+let ocultas = new Set();
+try { ocultas = new Set(JSON.parse(localStorage.getItem('resumenMaquinasOcultas') ?? '[]')); } catch {}
+function guardarOcultas() {
+  try { localStorage.setItem('resumenMaquinasOcultas', JSON.stringify([...ocultas])); } catch {}
+}
+
+function pintarFiltro(r) {
+  const cont = document.getElementById('filtro-maquinas');
+  const maquinas = r.maquinas ?? [];
+  coloresMaquina = new Map(maquinas.map((m) => m.maquina).sort().map((n, i) => [n, COLORES_MAQUINA[i % COLORES_MAQUINA.length]]));
+  cont.hidden = maquinas.length < 2;
+  if (cont.hidden) return;
+  cont.innerHTML = 'máquinas' + maquinas.map((m) => `<label><input type="checkbox" value="${esc(m.maquina)}"${ocultas.has(m.maquina) ? '' : ' checked'}>${punto(m.maquina)}${esc(m.maquina)}${m.incluida && m.ok === false ? ' <span class="caida">(no responde)</span>' : ''}${m.cargando ? ' <span class="caida">(cargando…)</span>' : ''}</label>`).join('');
+}
+
+document.getElementById('filtro-maquinas').addEventListener('change', (ev) => {
+  const caja = ev.target.closest('input[type=checkbox]');
+  if (!caja) return;
+  const marcadas = [...document.querySelectorAll('#filtro-maquinas input:checked')];
+  if (!marcadas.length) { caja.checked = true; return; } // siempre al menos una
+  if (caja.checked) ocultas.delete(caja.value); else ocultas.add(caja.value);
+  guardarOcultas();
+  cargar();
+});
+
+function pintarRangos() {
+  document.getElementById('rangos').innerHTML = rangos().map(([n, a, b]) =>
+    `<button type="button" data-desde="${a}" data-hasta="${b}" aria-pressed="${a === estado.desde && b === estado.hasta}">${n}</button>`).join('');
+  const desde = document.getElementById('desde');
+  const hasta = document.getElementById('hasta');
+  if (document.activeElement !== desde) desde.value = estado.desde;
+  if (document.activeElement !== hasta) hasta.value = estado.hasta;
+}
+
+function tile(etiqueta, valor, sub, color) {
+  return `<div class="tile"><div class="k">${color ? `<i style="background:${color}"></i>` : ''}${etiqueta}</div><div class="v">${valor}</div><div class="s">${sub ?? '&nbsp;'}</div></div>`;
+}
+
+function pintarTiles(r) {
+  const t = r.totales;
+  const f = r.fuentes;
+  document.getElementById('tiles').innerHTML = [
+    f.actividadActiva
+      ? tile('vos', largo(t.tuMs), f.actividadDesde ? 'en proyectos' : 'se registra desde hoy', 'var(--vos)')
+      : tile('vos', '—', 'desactivado: "registrarActividad"', 'var(--vos)'),
+    tile('claude trabajando', largo(t.activoMs), `${largo(t.claudeMs)} sumando sesiones`, 'var(--claude)'),
+    tile('algo te esperaba', largo(t.conEsperaMs), `${largo(t.esperaMs)} sumando sesiones`),
+    tile('respuesta p50', t.respuestaMedianaMs == null ? '—' : largo(t.respuestaMedianaMs), 'fin de turno → tu pedido'),
+    tile('pedidos', t.pedidos.toLocaleString('es'), `${compacto(t.tokens[2])} tokens de salida`),
+    tile('aprobaciones', t.aprobaciones.toLocaleString('es'), f.bitacoraDesde ? `${largo(t.bloqueoMs)} bloqueado` : 'se registran desde hoy'),
+  ].join('');
+
+  // Arriba, lo que cambia cómo leer los números; abajo, en la barra, desde cuándo hay datos.
+  const avisos = [];
+  if (!r.indexado) avisos.push('Indexando la historia de Claude Code: los números se completan en unos segundos.');
+  // Lo que falta, por máquina: el motivo corto, y las causas posibles en el ⓘ.
+  const incluidas = (r.maquinas ?? []).filter((m) => m.incluida);
+  const cargando = incluidas.filter((m) => m.cargando).map((m) => esc(m.maquina));
+  if (cargando.length) avisos.push(`Cargando los datos de ${cargando.join(', ')}…`);
+  for (const m of incluidas.filter((x) => x.ok === false)) {
+    const info = m.ayuda ? ` <span class="info" title="${esc(m.ayuda)}">ⓘ</span>` : '';
+    avisos.push(`${esc(m.maquina)}: ${esc(m.error ?? 'no responde')}${info}. Sus datos no están en estos números.`);
+  }
+  if (incluidas.length && !incluidas.some((m) => m.ok || m.cargando)) avisos.push('No hay métricas para mostrar.');
+  aviso(avisos.join(' '));
+  const fuentes = [];
+  if (f.transcriptsDesde) fuentes.push(`<span title="Claude Code borra los transcripts de más de 30 días; el tablero conserva lo que ya indexó">claude desde ${fecha(f.transcriptsDesde)}</span>`);
+  if (f.actividadActiva) fuentes.push(`<span>vos ${f.actividadDesde ? `desde ${fecha(f.actividadDesde)}` : 'desde hoy'}</span>`);
+  fuentes.push(`<span>aprobaciones ${f.bitacoraDesde ? `desde ${fecha(f.bitacoraDesde)}` : 'desde hoy'}</span>`);
+  if ((r.maquinas ?? []).filter((m) => m.incluida).length > 1) fuentes.push('<span class="w">⚠ con varias máquinas, "claude trabajando" suma las de cada una</span>');
+  document.getElementById('fuentes').innerHTML = fuentes.join('');
+}
+
+// Recibe HTML: lo que viene de afuera tiene que llegar ya escapado.
+function aviso(html) {
+  const a = document.getElementById('aviso');
+  a.innerHTML = html ?? '';
+  a.style.display = html ? 'block' : 'none';
+}
+
+const COLUMNAS = [
+  ['vos', (p) => p.tuMs, hhmm],
+  ['claude', (p) => p.activoMs, hhmm],
+  ['claude (suma)', (p) => p.claudeMs, hhmm],
+  ['te esperó', (p) => p.conEsperaMs, hhmm],
+  ['resp. p50', (p) => p.respuestaMedianaMs, (v) => (v == null ? '—' : largo(v))],
+  ['pedidos', (p) => p.pedidos, (v) => v.toLocaleString('es')],
+  ['tokens salida', (p) => p.tokens[2], compacto],
+  ['aprob.', (p) => p.aprobaciones, (v) => v.toLocaleString('es')],
+];
+
+// Vos y Claude como barras horizontales, con la misma escala en toda la tabla para comparar filas.
+function columnaBarras(filas) {
+  const tope = Math.max(1, ...filas.flatMap((p) => [p.tuMs, p.activoMs]));
+  const barra = (ms, color) => `<div class="pista">${ms > 0 ? `<span style="width:${Math.max(1, (ms / tope) * 100)}%;background:${color}"></span>` : ''}</div>`;
+  return (p) => `<td class="barras" title="vos ${largo(p.tuMs)} · claude trabajando ${largo(p.activoMs)}">${barra(p.tuMs, 'var(--vos)')}${barra(p.activoMs, 'var(--claude)')}</td>`;
+}
+
+function tabla(primera, filas, total, columnas, barras = null) {
+  const cab = `<tr><th>${primera}</th>${barras ? '<th class="barras">vos · claude</th>' : ''}${columnas.map(([n]) => `<th>${n}</th>`).join('')}</tr>`;
+  const fila = (nombre, p, clase = '', claseNombre = '') => `<tr class="${clase}"><td class="${claseNombre}">${nombre}</td>${barras ? (clase === 'total' ? '<td></td>' : barras(p)) : ''}${columnas.map(([, get, fmt]) => {
+    const v = get(p);
+    return `<td class="${!v ? 'cero' : ''}">${fmt(v)}</td>`;
+  }).join('')}</tr>`;
+  return `<table>${cab}${filas.map(([n, p, cn]) => fila(n, p, '', cn)).join('')}${total ? fila('Total', total, 'total') : ''}</table>`;
+}
+
+function pintarTablas(r) {
+  // "Claude" de cada proyecto es la unión de sus sesiones, y el del Total la unión de todas: el
+  // Total puede ser menor que la suma de las filas, porque los proyectos se superponen.
+  const varias = (r.maquinas ?? []).filter((m) => m.incluida).length > 1;
+  const proyectos = r.proyectos.map((p) => [ICONO_CARPETA + esc(p.proyecto) + (varias ? (p.maquinas ?? []).map(punto).join('') : ''), p, 'proy']);
+  document.getElementById('tabla-proyectos').innerHTML = proyectos.length
+    ? tabla('proyecto', proyectos, r.totales, COLUMNAS.filter(([n]) => n !== 'te esperó'), columnaBarras(r.proyectos))
+    : '<div class="vacio">Sin actividad en este rango.</div>';
+  const { porHora, tramos } = serie(r);
+  document.getElementById('titulo-detalle').textContent = porHora ? 'detalle por hora' : 'detalle por día';
+  // Por hora se listan solo las horas con algo; por día, todos los días (un día vacío también dice algo).
+  const filas = tramos.filter((t) => !porHora || t.tuMs || t.claudeMs || t.pedidos || t.esperaMs);
+  document.getElementById('tabla-dias').innerHTML = filas.length
+    ? tabla(porHora ? 'hora' : 'día', filas.map((t) => [esc(t.rotulo), t]), null, COLUMNAS, columnaBarras(filas))
+    : '<div class="vacio">Sin actividad.</div>';
+}
+
+// Un solo día ("Hoy", "Ayer"): por hora. Más de un día: por día. Cada tramo trae etiqueta (eje) y rótulo.
+function serie(r) {
+  if (r.dias.length === 1) {
+    return { porHora: true, tramos: r.horas.map((h) => ({ ...h, etiqueta: `${h.hora} h`, rotulo: `${h.hora} a ${h.hora + 1} h` })) };
+  }
+  return { porHora: false, tramos: r.dias.map((d) => ({ ...d, etiqueta: fecha(d.dia), rotulo: `${diaSemana(d.dia)} ${fecha(d.dia)}` })) };
+}
+
+// Columnas agrupadas por día (o por hora, en un solo día): vos y Claude trabajando, un solo eje.
+function pintarGrafico(r) {
+  const cont = document.getElementById('grafico');
+  const { porHora, tramos } = serie(r);
+  document.getElementById('titulo-grafico').textContent = porHora ? 'por hora' : 'por día';
+  document.getElementById('unidad-grafico').textContent = porHora ? 'minutos en cada hora' : 'horas en cada día';
+  // Por hora el eje va en minutos (una hora tiene 60); por día, en horas.
+  const unidad = porHora ? 60e3 : 3600e3;
+  const sufijo = porHora ? '' : ' h';
+  const W = cont.clientWidth || 800;
+  const H = 230;
+  const m = { izq: 40, der: 8, arr: 10, aba: 26 };
+  const ancho = W - m.izq - m.der;
+  const alto = H - m.arr - m.aba;
+  const maxH = Math.max(porHora ? 15 : 1, ...tramos.flatMap((d) => [d.tuMs, d.activoMs].map((v) => v / unidad)));
+  const paso = porHora ? (maxH > 30 ? 15 : 5) : maxH > 12 ? 4 : maxH > 6 ? 2 : 1;
+  const tope = Math.ceil(maxH / paso) * paso;
+  const y = (h) => m.arr + alto - (h / tope) * alto;
+  const banda = ancho / tramos.length;
+  const barra = Math.max(3, Math.min(20, (banda * 0.7 - 2) / 2));
+  const radio = Math.min(3, barra / 2);
+  // Columna con la punta redondeada y la base recta.
+  const columna = (x, h, color) => {
+    if (h <= 0) return '';
+    const y0 = y(0), y1 = y(h);
+    const rr = Math.min(radio, (y0 - y1) / 2);
+    return `<path style="fill:${color}" d="M${x},${y0} V${y1 + rr} Q${x},${y1} ${x + rr},${y1} H${x + barra - rr} Q${x + barra},${y1} ${x + barra},${y1 + rr} V${y0} Z"/>`;
+  };
+  let svg = '';
+  for (let h = 0; h <= tope; h += paso) {
+    svg += `<line x1="${m.izq}" x2="${W - m.der}" y1="${y(h)}" y2="${y(h)}" style="stroke:var(${h ? '--grilla' : '--base'})" stroke-width="1"/>`;
+    svg += `<text x="${m.izq - 8}" y="${y(h) + 4}" text-anchor="end">${h}${sufijo}</text>`;
+  }
+  const cadaEtiqueta = porHora ? 3 : Math.ceil(tramos.length / Math.max(1, Math.floor(ancho / 56)));
+  tramos.forEach((d, i) => {
+    const x0 = m.izq + i * banda;
+    const xc = x0 + banda / 2;
+    svg += `<rect class="hit" data-i="${i}" x="${x0}" y="${m.arr}" width="${banda}" height="${alto}" fill="transparent"/>`;
+    svg += columna(xc - barra - 1, d.tuMs / unidad, 'var(--vos)');
+    svg += columna(xc + 1, d.activoMs / unidad, 'var(--claude)');
+    if (i % cadaEtiqueta === 0) svg += `<text x="${xc}" y="${H - 6}" text-anchor="middle">${esc(d.etiqueta)}</text>`;
+  });
+  cont.querySelector('svg')?.remove();
+  cont.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Vos y Claude trabajando por ${porHora ? 'hora' : 'día'}; el detalle está en la tabla de abajo">${svg}</svg>`);
+}
+
+const tip = document.getElementById('tip');
+document.getElementById('grafico').addEventListener('mousemove', (ev) => {
+  const hit = ev.target.closest('.hit');
+  document.querySelectorAll('.hit').forEach((h) => h.setAttribute('fill', h === hit ? 'var(--resalte)' : 'transparent'));
+  if (!hit || !estado.datos) return (tip.style.display = 'none');
+  const d = serie(estado.datos).tramos[hit.dataset.i];
+  tip.innerHTML = `<strong>${esc(d.rotulo)}</strong><br>` +
+    `<i style="background:var(--vos)"></i>vos ${largo(d.tuMs)}<br>` +
+    `<i style="background:var(--claude)"></i>claude trabajando ${largo(d.activoMs)}<br>` +
+    `${Number(d.pedidos) || 0} pedidos · te esperó ${largo(d.conEsperaMs)}`;
+  tip.style.display = 'block';
+  // Fijo a la ventana (el bloque del gráfico recorta lo que se sale); si abajo no entra, va arriba.
+  const ancho = tip.offsetWidth;
+  const alto = tip.offsetHeight;
+  tip.style.left = `${Math.max(8, Math.min(ev.clientX + 14, innerWidth - ancho - 8))}px`;
+  tip.style.top = `${ev.clientY + 14 + alto > innerHeight - 8 ? Math.max(8, ev.clientY - alto - 12) : ev.clientY + 14}px`;
+});
+document.getElementById('grafico').addEventListener('mouseleave', () => {
+  tip.style.display = 'none';
+  document.querySelectorAll('.hit').forEach((h) => h.setAttribute('fill', 'transparent'));
+});
+
+// CSV para planillas en castellano: separador ";" y coma decimal; horas en decimal.
+function exportarCsv() {
+  const r = estado.datos;
+  if (!r) return;
+  const h = (ms) => ((ms ?? 0) / 3600e3).toFixed(2).replace('.', ',');
+  const filas = [['Proyecto', 'Máquinas', 'Tu tiempo (h)', 'Claude trabajando (h)', 'Claude suma (h)', 'Te esperó suma (h)', 'Respuesta mediana (min)', 'Pedidos', 'Tokens entrada', 'Tokens caché', 'Tokens salida', 'Aprobaciones', 'Bloqueado (h)']];
+  for (const p of r.proyectos) {
+    filas.push([p.proyecto, (p.maquinas ?? []).join(', '), h(p.tuMs), h(p.activoMs), h(p.claudeMs), h(p.esperaMs),
+      p.respuestaMedianaMs == null ? '' : String(Math.round(p.respuestaMedianaMs / 60e3)), p.pedidos, ...p.tokens, p.aprobaciones, h(p.bloqueoMs)]);
+  }
+  const FIN_DE_LINEA = String.fromCharCode(13, 10);
+  const BOM = String.fromCharCode(0xfeff); // para que Excel lo abra como UTF-8
+  const texto = filas.map((f) => f.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join(FIN_DE_LINEA);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([BOM + texto], { type: 'text/csv;charset=utf-8' }));
+  a.download = `tiempos-${r.desde}_${r.hasta}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// Primero lo de esta PC, que está al instante; las otras PCs pueden tardar (o no responder) y se
+// suman cuando llegan. Si mientras tanto se pide otro rango, las respuestas viejas se descartan.
+let pedidoActual = 0;
+async function cargar() {
+  pintarRangos();
+  const n = ++pedidoActual;
+  const ocultar = ocultas.size ? `&ocultar=${encodeURIComponent([...ocultas].join(','))}` : '';
+  const url = `/api/metricas?desde=${estado.desde}&hasta=${estado.hasta}${ocultar}`;
+  const pedir = async (u) => {
+    const r = await fetch(u, { headers: { 'X-Tablero': '1' } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    return j;
+  };
+  const pintar = (j) => {
+    if (n !== pedidoActual) return;
+    estado.datos = j;
+    pintarFiltro(j);
+    pintarTiles(j);
+    pintarGrafico(j);
+    pintarTablas(j);
+  };
+  let completo = false;
+  pedir(`${url}&remotas=0`).then((j) => { if (!completo) pintar(j); }, () => {});
+  try {
+    const j = await pedir(url);
+    completo = true;
+    pintar(j);
+  } catch (e) {
+    if (n === pedidoActual) aviso(`No pude cargar las métricas: ${esc(e.message)}`);
+  }
+}
+
+function elegir(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) return;
+  Object.assign(estado, { desde, hasta });
+  try { localStorage.setItem('resumenRango', JSON.stringify([desde, hasta])); } catch {}
+  cargar();
+}
+
+document.getElementById('rangos').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-desde]');
+  if (b) elegir(b.dataset.desde, b.dataset.hasta);
+});
+document.querySelector('.fechas').addEventListener('change', () => elegir(document.getElementById('desde').value, document.getElementById('hasta').value));
+document.getElementById('csv').addEventListener('click', exportarCsv);
+let redimension;
+addEventListener('resize', () => { clearTimeout(redimension); redimension = setTimeout(() => estado.datos && pintarGrafico(estado.datos), 150); });
+
+// Arranca en el último botón de rango que usaste (Hoy, 7 días…), o en "7 días".
+const [, d7, h7] = rangos()[2];
+estado.desde = d7;
+estado.hasta = h7;
+try {
+  const [a, b] = JSON.parse(localStorage.getItem('resumenRango') ?? 'null') ?? [];
+  if (a && b && rangos().some(([, x, y]) => x === a && y === b)) Object.assign(estado, { desde: a, hasta: b });
+} catch {}
+// Un rango en la dirección (?desde=AAAA-MM-DD&hasta=AAAA-MM-DD) manda: sirve para guardarlo como marcador.
+const enUrl = new URLSearchParams(location.search);
+const FECHA = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+if (FECHA.test(enUrl.get('desde') ?? '') && FECHA.test(enUrl.get('hasta') ?? '')) {
+  Object.assign(estado, { desde: enUrl.get('desde'), hasta: enUrl.get('hasta') });
+}
+cargar();
+setInterval(() => { if (document.activeElement?.tagName !== 'INPUT') cargar(); }, 60e3);
+</script>
+</body>
+</html>

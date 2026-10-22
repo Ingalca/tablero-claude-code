@@ -1,0 +1,33 @@
+{
+  "name": "tablero-claude-code",
+  "version": "0.1.0",
+  "description": "Tablero local para ver de un vistazo el estado de todas tus sesiones de Claude Code, en VS Code o en la terminal.",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "dashboard",
+    "vscode",
+    "windows",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "author": "Ingalca (https://ingalca.com)",
+  "private": true,
+  "homepage": "https://github.com/Ingalca/tablero-claude-code#readme",
+  "bugs": "https://github.com/Ingalca/tablero-claude-code/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ingalca/tablero-claude-code.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32"
+  ],
+  "scripts": {
+    "start": "node agente.js",
+    "demo": "node scripts/demo.js",
+    "test": "node --test test/"
+  }
+}

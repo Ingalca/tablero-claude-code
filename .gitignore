@@ -1,0 +1,6 @@
+# Token compartido y estado local de cada PC
+config.json
+datos/
+
+# Configuración local de Claude Code (permisos, planes)
+.claude/

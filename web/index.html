@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sesiones Claude</title>
+<link rel="icon" id="icono" href="data:,">
+<style>
+  :root {
+    --fondo: #1e1f22;
+    --cabecera: #191a1d;
+    --panel: #26282c;
+    --tab: #2f3237;
+    --chip: #1c1d20;
+    --borde: #393c42;
+    --texto: #dfe1e5;
+    --tenue: #8c939d;
+    --apagado: #5c636d;
+    --espera: #e8a33d;
+    --espera-fondo: rgba(232, 163, 61, 0.09);
+    --termino: #4cc777;
+    --termino-fondo: rgba(76, 199, 119, 0.07);
+    --trabaja: #4b9df7;
+    --linea-vacia: #3a3f46;
+    --barra: #2b2d42;
+    --barra-texto: #c9cbe0;
+    --carpeta: #c09553;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --sans: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --fondo: #f1f2f4;
+      --cabecera: #ffffff;
+      --panel: #ffffff;
+      --tab: #f6f7f9;
+      --chip: #f1f2f4;
+      --borde: #d9dde3;
+      --texto: #1b1f24;
+      --tenue: #5b6470;
+      --apagado: #98a0ab;
+      --espera: #c27400;
+      --espera-fondo: rgba(242, 163, 58, 0.13);
+      --termino: #1f8f43;
+      --termino-fondo: rgba(70, 192, 106, 0.11);
+      --trabaja: #2f6fc6;
+      --linea-vacia: #e1e4e9;
+      --barra: #e7e9f2;
+      --barra-texto: #3b3f55;
+      --carpeta: #b07d2f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 16px/1.4 var(--sans); padding-bottom: 46px; }
+  a { color: inherit; }
+
+  /* Cabecera */
+  .titulo { display: flex; align-items: center; gap: 18px; padding: 10px 20px; background: var(--cabecera); border-bottom: 1px solid var(--borde); flex-wrap: wrap; }
+  .titulo h1 { font: 600 15px var(--mono); margin: 0; color: var(--tenue); letter-spacing: 0.02em; white-space: nowrap; }
+  .titulo h1 b { color: var(--texto); }
+  #hoy { font: 13px var(--mono); color: var(--tenue); }
+  #hoy b { color: var(--texto); font-weight: 500; }
+  .boton-resumen {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    font: 600 14px var(--sans); color: var(--texto); background: var(--tab); border: 1px solid var(--borde);
+    border-radius: 6px; padding: 5px 12px; white-space: nowrap;
+  }
+  .boton-resumen:hover { border-color: var(--tenue); }
+  .boton-resumen svg { width: 16px; height: 16px; }
+
+  .contenido { padding: 16px 20px; }
+  #aviso { display: none; background: var(--espera-fondo); border: 1px solid var(--espera); padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; }
+  #nota-uri { display: flex; gap: 14px; align-items: baseline; color: var(--tenue); font-size: 14px; border: 1px solid var(--borde); border-radius: 6px; padding: 8px 14px; margin-bottom: 14px; background: var(--panel); }
+  #nota-uri[hidden] { display: none; }
+  #nota-uri b { color: var(--texto); font-weight: 600; }
+  #nota-uri button { margin-left: auto; font: inherit; color: var(--texto); background: var(--tab); border: 1px solid var(--borde); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+
+  /* Tarjetas */
+  .grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 16px; }
+  .tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 6px; overflow: hidden; }
+  .tarjeta.esperando { border-color: var(--espera); }
+  .tarjeta.inactiva { opacity: 0.55; }
+  .tarjeta.enfocable { cursor: pointer; }
+  .tarjeta.enfocable:hover { outline: 2px solid var(--tenue); outline-offset: 1px; }
+  /* PC que no responde: lo último que se supo, en gris */
+  .tarjeta.desactualizada { filter: grayscale(1); opacity: 0.5; border-style: dashed; }
+  .tab { display: flex; align-items: baseline; gap: 10px; background: var(--tab); padding: 7px 12px; border-top: 3px solid var(--tab); border-bottom: 1px solid var(--borde); min-width: 0; }
+  .con-maquina .tab { border-top-color: var(--maq); }
+  .tab > svg { width: 16px; height: 16px; flex: none; align-self: center; }
+  .proyecto { font-weight: 650; font-size: 18px; white-space: nowrap; }
+  .ruta { font: 12px var(--mono); color: var(--apagado); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .accion { margin-left: auto; color: var(--tenue); font: 12px var(--mono); white-space: nowrap; }
+  .maquina { font: 600 11.5px var(--mono); color: #fff; background: var(--maq); border-radius: 3px; padding: 1px 7px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; align-self: center; }
+  .accion:empty + .maquina, .accion:empty + .pin { margin-left: auto; }
+  .pin { background: none; border: none; padding: 2px; color: var(--tenue); opacity: 0; cursor: pointer; line-height: 0; align-self: center; }
+  .pin svg { width: 18px; height: 18px; }
+  .tarjeta:hover .pin { opacity: 0.6; }
+  .pin:hover { opacity: 1 !important; color: var(--texto); }
+  .fijada .pin { opacity: 0.85; color: var(--texto); }
+  .fijada .pin svg { fill: currentColor; }
+  .fijada { cursor: grab; }
+  .fijada.enfocable { cursor: pointer; }
+  .arrastrando { opacity: 0.35 !important; }
+  .soltar-antes { box-shadow: -5px 0 0 var(--trabaja); }
+  .soltar-despues { box-shadow: 5px 0 0 var(--trabaja); }
+  .tarjeta.vacia { opacity: 0.5; border-style: dashed; }
+  .nada, .sin-datos { color: var(--tenue); font-size: 14px; padding: 10px 14px; }
+  .sin-datos { padding-bottom: 0; }
+
+  /* Sesiones */
+  .fila { display: grid; grid-template-columns: 20px 1fr auto; gap: 3px 10px; padding: 10px 12px; border-left: 3px solid transparent; }
+  .fila + .fila { border-top: 1px solid var(--borde); }
+  .fila.esperando { border-left-color: var(--espera); background: var(--espera-fondo); }
+  .fila.termino { border-left-color: var(--termino); background: var(--termino-fondo); }
+  .ico { width: 18px; height: 18px; margin-top: 3px; }
+  .titulo-s { font-weight: 600; font-size: 17px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fila.inactiva .titulo-s { font-weight: 500; color: var(--tenue); }
+  .estado { font: 600 13px var(--mono); white-space: nowrap; padding-top: 3px; }
+  .estado.esperando { color: var(--espera); }
+  .estado.termino { color: var(--termino); }
+  .estado.trabajando { color: var(--trabaja); }
+  .estado.inactiva, .estado.desconocido { color: var(--apagado); }
+  .meta { grid-column: 2 / 4; display: flex; gap: 6px; flex-wrap: wrap; }
+  .meta span { font: 12px var(--mono); color: var(--tenue); background: var(--chip); border: 1px solid var(--borde); border-radius: 3px; padding: 0 6px; white-space: nowrap; }
+  .mensaje { grid-column: 2 / 4; color: var(--tenue); font-size: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Línea de tiempo de la última hora: un tramo por estado, ancho proporcional a sus minutos */
+  /* La zona de la línea es más alta que la línea, para que sea fácil apuntarle con el mouse */
+  .linea { grid-column: 2 / 4; padding: 4px 0; margin-top: 0; cursor: help; }
+  .barra-linea { display: flex; gap: 1px; height: 5px; }
+  .barra-linea span { height: 100%; border-radius: 2px; }
+  .tip-linea {
+    position: fixed; z-index: 10; pointer-events: none; max-width: 360px; background: var(--panel); border: 1px solid var(--borde);
+    border-radius: 6px; padding: 8px 11px; font: 12.5px/1.5 var(--mono); color: var(--tenue); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  }
+  .tip-linea[hidden] { display: none; }
+  .tip-linea .t { color: var(--texto); font-weight: 600; margin-bottom: 4px; }
+  .tip-linea .ahora { color: var(--texto); margin-bottom: 4px; }
+  .tip-linea i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .tip-linea .totales { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  .tip-linea .eje { margin-top: 4px; color: var(--apagado); }
+  .linea .r { background: var(--trabaja); }
+  .linea .w { background: var(--espera); }
+  .linea .d { background: var(--termino); }
+  .linea .i { background: var(--linea-vacia); }
+
+  /* Inactivas viejas */
+  #vacio { color: var(--tenue); margin-top: 18px; }
+  #plegadas { margin-top: 24px; }
+  #plegadas summary { color: var(--tenue); font: 14px var(--mono); cursor: pointer; padding: 6px 0; user-select: none; }
+  #plegadas summary:hover { color: var(--texto); }
+  #plegadas .grilla { margin-top: 10px; }
+  #plegadas .tarjeta { opacity: 0.75; }
+  #viejas { margin-top: 24px; color: var(--tenue); font: 13px var(--mono); line-height: 2.1; }
+  #viejas .rotulo { margin-right: 10px; }
+  .nombre {
+    font: 13px var(--mono); color: var(--tenue); background: var(--panel); border: 1px solid var(--borde); border-radius: 4px;
+    padding: 2px 10px; margin: 0 6px 6px 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  }
+  .nombre b { font-weight: 600; color: var(--texto); }
+  .nombre.enfocable { cursor: pointer; }
+  .nombre.enfocable:hover { border-color: var(--tenue); }
+  .nombre:not(.enfocable) { cursor: default; }
+  .punto-maq { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--maq); margin: 0 5px 1px 2px; vertical-align: middle; }
+
+  /* Barra de estado */
+  .status {
+    position: fixed; left: 0; right: 0; bottom: 0; min-height: 34px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 4px 16px; background: var(--barra); color: var(--barra-texto); font: 13px var(--mono);
+  }
+  #resumen { display: flex; gap: 18px; font-size: 15px; font-weight: 600; }
+  #resumen .w { color: var(--espera); }
+  #resumen .d { color: var(--termino); }
+  #resumen .r { color: var(--trabaja); }
+  #resumen .calma { font-weight: 400; }
+  .status .der { margin-left: auto; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  #maquinas { display: flex; gap: 14px; }
+  .maq-caida { color: var(--espera); }
+  #version { color: var(--espera); cursor: help; }
+  .leyenda { display: flex; gap: 10px; align-items: center; color: var(--barra-texto); opacity: 0.85; }
+  .leyenda i { display: inline-block; width: 10px; height: 4px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .status a { text-decoration: none; }
+  .status a:hover { text-decoration: underline; }
+
+  @media (max-width: 560px) {
+    .titulo, .contenido { padding-left: 16px; padding-right: 16px; }
+    .grilla { grid-template-columns: 1fr; }
+    .ruta { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="titulo">
+  <h1>claude <b>sessions</b></h1>
+  <div id="hoy"></div>
+  <a class="boton-resumen" href="/resumen" title="Métricas por proyecto, día y hora">
+    <svg viewBox="0 0 16 16"><rect x="1.5" y="8" width="3" height="6" rx="0.8" fill="currentColor"/><rect x="6.5" y="3" width="3" height="11" rx="0.8" fill="currentColor"/><rect x="11.5" y="6" width="3" height="8" rx="0.8" fill="currentColor"/></svg>
+    Resumen
+  </a>
+</header>
+<div class="contenido">
+  <div id="nota-uri" hidden>
+    <span>Al hacer click en una tarjeta, la primera vez VS Code pregunta <b>"Allow 'Claude Code' extension to open this URI?"</b>:
+    marcá <b>"Do not ask me again for this extension"</b> y aceptá, así abre directo la pestaña de la sesión.</span>
+    <button type="button" id="nota-uri-ok">Entendido</button>
+  </div>
+  <div id="aviso"></div>
+  <main id="grilla" class="grilla"></main>
+  <div id="vacio" hidden>No hay sesiones abiertas.</div>
+  <details id="plegadas" hidden>
+    <summary></summary>
+    <div id="grilla-plegadas" class="grilla"></div>
+  </details>
+  <div id="viejas" hidden><span class="rotulo"></span><span id="lista-viejas"></span></div>
+</div>
+<div id="tip-linea" class="tip-linea" hidden></div>
+<footer class="status">
+  <span id="resumen"></span>
+  <span class="der">
+    <span class="leyenda" title="La línea bajo cada sesión: qué estuvo haciendo en la última hora">última hora
+      <span><i style="background:var(--trabaja)"></i>trabaja</span><span><i style="background:var(--espera)"></i>espera</span><span><i style="background:var(--termino)"></i>terminó</span>
+    </span>
+    <span id="maquinas"></span>
+    <span id="version" hidden></span>
+    <a href="/resumen">resumen ↗</a>
+  </span>
+</footer>
+
+<script>
+const REFRESCO_MS = 2000;
+const PRIORIDAD = { esperando: 0, termino: 1, trabajando: 2, desconocido: 3, inactiva: 4 };
+const MOTIVOS = {
+  'permission prompt': 'pide aprobación',
+  'input needed': 'te pregunta',
+  'dialog open': 'diálogo abierto',
+  'sandbox request': 'pide permiso',
+};
+
+const ICONO_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 3h6l-1 6 4 4v2H6v-2l4-4-1-6z"/><path d="M12 15v6"/></svg>';
+const ICONO_CARPETA = '<svg viewBox="0 0 16 16"><path style="fill:var(--carpeta)" d="M1.5 3h4.2l1.3 1.5h7.5v8.5h-13z"/></svg>';
+// Íconos de estado, como los de VS Code: ⚠ espera, ✓ terminó, ⟳ trabaja, ○ inactiva.
+const ICONOS = {
+  esperando: '<svg class="ico" viewBox="0 0 16 16"><path style="fill:var(--espera)" d="M8 1l7 13H1z"/><path style="fill:var(--panel)" d="M7.3 5.5h1.4v4.5H7.3zM7.3 11h1.4v1.4H7.3z"/></svg>',
+  termino: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" style="fill:var(--termino)"/><path fill="none" style="stroke:var(--panel)" stroke-width="1.8" d="M4.5 8.2l2.3 2.3 4.7-4.8"/></svg>',
+  trabajando: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" style="stroke:var(--linea-vacia)" stroke-width="2"/><path fill="none" style="stroke:var(--trabaja)" stroke-width="2" stroke-linecap="round" d="M8 2a6 6 0 0 1 6 6"/></svg>',
+  inactiva: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" style="stroke:var(--apagado)" stroke-width="1.6"/></svg>',
+  desconocido: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" style="stroke:var(--apagado)" stroke-width="1.6" stroke-dasharray="2 2"/></svg>',
+};
+
+let datos = null;
+let paginaCargada = null; // si el agente sirve otra versión de esta página, se recarga sola
+const pintado = new Map(); // id del contenedor → último html, para no tocar el DOM si nada cambió
+let enfocando = null; // carpeta que se está trayendo al frente, para dar feedback
+let arrastrando = null; // clave de la tarjeta fijada que se está moviendo
+
+// Un estado solo entra al HTML (como clase CSS) si es uno de los conocidos.
+const ESTADOS_VALIDOS = new Set(['trabajando', 'esperando', 'termino', 'inactiva', 'desconocido']);
+const est = (e) => (ESTADOS_VALIDOS.has(e) ? e : 'desconocido');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+function hace(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 45) return 'ahora';
+  const m = Math.round(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 && h < 10 ? `hace ${h} h ${m % 60} min` : `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
+}
+
+function duracion(ms) {
+  const m = Math.round(Math.max(0, ms) / 60e3);
+  if (m < 1) return 'menos de 1 min';
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return m % 60 && h < 10 ? `${h} h ${m % 60} min` : `${h} h`;
+}
+
+// Un color por máquina, para reconocer de un vistazo de cuál es cada tarjeta. Se asignan por orden
+// alfabético de los nombres: la misma máquina tiene el mismo color en los tableros de todas las PCs.
+// Ninguno es ámbar, verde ni azul, que ya significan estados. Todos llevan texto blanco legible.
+const COLORES_MAQUINA = ['#5b4bc4', '#b5326a', '#1d7f86', '#8a5a2b'];
+let coloresMaquina = new Map();
+const colorDe = (maquina) => coloresMaquina.get(maquina) ?? COLORES_MAQUINA[0];
+
+const horaCorta = (ms) => new Date(ms).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+
+// El estado y su tiempo, en una línea: qué hace y desde cuándo.
+function estadoTexto(s, ahora) {
+  const ms = ahora - s.desde;
+  if (s.estado === 'esperando') return `${MOTIVOS[s.motivo] ?? 'esperando'} · ${duracion(ms)}`;
+  if (s.estado === 'trabajando') return `trabajando · ${duracion(ms)}`;
+  if (s.estado === 'termino') return ms < 45e3 ? 'terminó recién' : `terminó ${hace(ms)}`;
+  if (s.estado === 'desconocido') return `¿${s.motivo}? · ${hace(ms)}`;
+  return `inactiva · ${hace(ms)}`;
+}
+
+// Etiquetas chicas: desde dónde corre y en qué modo de permisos.
+const ANFITRIONES = { WindowsTerminal: 'Windows Terminal', mintty: 'Git Bash', conhost: 'consola', Code: 'terminal de VS Code' };
+const MODOS = { auto: 'auto', acceptEdits: 'acepta ediciones', plan: 'plan', default: 'pide permiso', bypassPermissions: 'sin permisos', dontAsk: 'no pregunta' };
+
+function metaHtml(s) {
+  const out = [];
+  if (s.origen === 'vscode') out.push(['VS Code', 'Sesión de VS Code: el click abre su pestaña']);
+  else if (s.origen === 'terminal') out.push([ANFITRIONES[s.anfitrion] ?? 'terminal', 'Sesión de terminal: el click trae su ventana, no la pestaña']);
+  else if (s.origen === 'escritorio') out.push(['app de escritorio', 'Sesión de la app de escritorio de Claude: no se puede traer al frente desde el tablero']);
+  else if (s.origen) out.push([s.origen, '']);
+  if (s.modo) out.push([MODOS[s.modo] ?? s.modo, 'Modo de permisos de tu último pedido']);
+  if (!out.length) return '';
+  return `<div class="meta">${out.map(([texto, ayuda]) => `<span title="${esc(ayuda)}">${esc(texto)}</span>`).join('')}</div>`;
+}
+
+// La última hora, minuto a minuto (r trabaja, w espera, d terminó, i inactiva): tramos con ancho proporcional.
+const NOMBRES_LINEA = { r: 'trabajando', w: 'esperando', d: 'terminó', i: 'inactiva' };
+function lineaHtml(s) {
+  if (typeof s.linea !== 'string' || !/^[rwdi]{60}$/.test(s.linea) || !/[rwd]/.test(s.linea)) return '';
+  const tramos = [];
+  for (const c of s.linea) {
+    const u = tramos[tramos.length - 1];
+    if (u && u.c === c) u.n++;
+    else tramos.push({ c, n: 1 });
+  }
+  return `<div class="linea" data-linea="${esc(s.linea)}"><div class="barra-linea">${tramos.map((t) => `<span class="${t.c}" style="flex:${t.n}"></span>`).join('')}</div></div>`;
+}
+
+// Lo que espera hace más tiempo va primero; lo demás, lo más reciente primero.
+function comparar(a, b) {
+  const p = PRIORIDAD[a.estado] - PRIORIDAD[b.estado];
+  if (p) return p;
+  return PRIORIDAD[a.estado] <= 1 ? a.desde - b.desde : b.desde - a.desde;
+}
+
+function pintar(id, html) {
+  if (pintado.get(id) === html) return;
+  document.getElementById(id).innerHTML = html;
+  pintado.set(id, html);
+}
+
+const claveDe = (maquina, carpeta) => `${maquina}|${carpeta.toLowerCase()}`;
+
+// Una tarjeta por máquina + carpeta, ordenadas por su sesión más urgente.
+function agrupar(items) {
+  const tarjetas = new Map();
+  for (const { m, s } of items) {
+    const clave = claveDe(m.maquina, s.carpeta);
+    if (!tarjetas.has(clave)) tarjetas.set(clave, { clave, maquina: m.maquina, local: m.local, caida: !m.ok, ultimoOk: m.ultimoOk, proyecto: s.proyecto, carpeta: s.carpeta, sesiones: [] });
+    tarjetas.get(clave).sesiones.push(s);
+  }
+  const lista = [...tarjetas.values()];
+  for (const t of lista) t.sesiones.sort(comparar);
+  lista.sort((a, b) => comparar(a.sesiones[0], b.sesiones[0]) || a.proyecto.localeCompare(b.proyecto));
+  return lista;
+}
+
+// La cabecera de la tarjeta, como una pestaña: carpeta, proyecto, ruta, máquina y pin.
+function tabHtml(t, fijada, variasMaquinas) {
+  const accion = enfocando === t.carpeta ? 'trayendo al frente…' : '';
+  return `<div class="tab">${ICONO_CARPETA}
+      <span class="proyecto">${esc(t.proyecto)}</span>
+      <span class="ruta">${esc(t.carpeta)}</span>
+      <span class="accion">${accion}</span>
+      ${variasMaquinas ? `<span class="maquina">${esc(t.maquina)}</span>` : ''}
+      <button type="button" class="pin" data-clave="${esc(t.clave)}" data-maquina="${esc(t.maquina)}" data-carpeta="${esc(t.carpeta)}"
+        data-proyecto="${esc(t.proyecto)}" title="${fijada ? 'Soltar' : 'Fijar en esta posición'}">${ICONO_PIN}</button>
+    </div>`;
+}
+
+// Una fijada sin sesiones recientes queda en su lugar, apagada, para que las demás no se corran.
+function vaciaHtml(t, variasMaquinas, tieneViejas) {
+  return `<section class="tarjeta vacia fijada${variasMaquinas ? ' con-maquina' : ''}" style="--maq:${colorDe(t.maquina)}" draggable="true" data-clave="${esc(t.clave)}" title="${esc(t.carpeta)}">
+      ${tabHtml(t, true, variasMaquinas)}
+      <div class="nada">${tieneViejas ? `Sin actividad en las últimas ${datos.horasInactivasVisibles} h` : 'Sin sesiones abiertas'}</div>
+    </section>`;
+}
+
+function tarjetasHtml(lista, ahora, variasMaquinas, fijadas = new Set()) {
+  return lista.map((t) => {
+    const top = est(t.sesiones[0].estado);
+    const id = t.local ? t.sesiones.find((s) => s.enfocable)?.id : undefined;
+    const fijada = fijadas.has(t.clave);
+    return `<section class="tarjeta ${top}${id ? ' enfocable' : ''}${fijada ? ' fijada' : ''}${t.caida ? ' desactualizada' : ''}${variasMaquinas ? ' con-maquina' : ''}" style="--maq:${colorDe(t.maquina)}"${fijada ? ' draggable="true"' : ''}
+      data-clave="${esc(t.clave)}" data-id="${esc(id ?? '')}" data-carpeta="${esc(t.carpeta)}">
+      ${tabHtml(t, fijada, variasMaquinas)}
+      ${t.caida ? `<div class="sin-datos">Sin datos de ${esc(t.maquina)}${t.ultimoOk ? ` desde las ${horaCorta(t.ultimoOk)}` : ''}: puede haber cambiado</div>` : ''}
+      ${t.sesiones.map((s) => `<div class="fila ${est(s.estado)}"${id && s.enfocable ? ` data-id="${esc(s.id)}"` : ''}>
+        ${ICONOS[est(s.estado)]}
+        <span class="titulo-s">${esc(s.titulo ?? 'Sin pedidos todavía')}</span>
+        <span class="estado ${est(s.estado)}">${esc(estadoTexto(s, ahora))}</span>
+        ${metaHtml(s)}
+        ${s.ultimoMensaje ? `<div class="mensaje">${esc(s.ultimoMensaje)}</div>` : ''}
+        ${lineaHtml(s)}
+      </div>`).join('')}
+    </section>`;
+  }).join('');
+}
+
+// Las de más de 24 h: solo el nombre, en una línea.
+function nombresHtml(items, ahora, variasMaquinas) {
+  return items
+    .sort((a, b) => b.s.desde - a.s.desde)
+    .map(({ m, s }) => {
+      const id = m.local && s.enfocable ? s.id : '';
+      const donde = variasMaquinas ? ` <span class="punto-maq" style="--maq:${colorDe(m.maquina)}" title="${esc(m.maquina)}"></span>${esc(m.maquina)}` : '';
+      return `<button type="button" class="nombre${id ? ' enfocable' : ''}" data-id="${esc(id)}" data-carpeta="${esc(s.carpeta)}"
+        title="${esc(s.carpeta)}: ${hace(ahora - s.desde)}"><b>${esc(s.proyecto)}</b>${donde} · ${esc(s.titulo ?? 'sin pedidos')}</button>`;
+    })
+    .join('');
+}
+
+function render() {
+  if (!datos || arrastrando) return; // repintar en medio de un arrastre lo cortaría
+  const ahora = Date.now();
+  const visibles = datos.horasInactivasVisibles * 3600e3;
+  const plegadas = datos.horasInactivasPlegadas * 3600e3;
+  const nivel = { grilla: [], plegadas: [], viejas: [] };
+  const cuenta = { esperando: 0, termino: 0, trabajando: 0 };
+
+  for (const m of datos.maquinas) {
+    for (const s of m.sesiones ?? []) {
+      if (s.estado in cuenta && m.ok) cuenta[s.estado]++; // lo de una PC que no responde no se sabe si sigue así
+      const edad = ahora - s.desde;
+      const donde = s.estado !== 'inactiva' || edad <= visibles ? 'grilla' : edad <= plegadas ? 'plegadas' : 'viejas';
+      nivel[donde].push({ m, s });
+    }
+  }
+  const variasMaquinas = datos.maquinas.length > 1;
+  coloresMaquina = new Map([...new Set(datos.maquinas.map((m) => m.maquina))].sort().map((n, i) => [n, COLORES_MAQUINA[i % COLORES_MAQUINA.length]]));
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+  // Primero las fijadas, siempre en su lugar; después el resto, por urgencia.
+  const fijadas = (datos.fijadas ?? []).map((f) => ({ ...f, clave: claveDe(f.maquina, f.carpeta) }));
+  const clavesFijadas = new Set(fijadas.map((f) => f.clave));
+  const grupos = agrupar(nivel.grilla);
+  const porClave = new Map(grupos.map((t) => [t.clave, t]));
+  const conViejas = new Set([...nivel.plegadas, ...nivel.viejas].map(({ m, s }) => claveDe(m.maquina, s.carpeta)));
+  pintar('grilla',
+    fijadas.map((f) => porClave.has(f.clave)
+      ? tarjetasHtml([porClave.get(f.clave)], ahora, variasMaquinas, clavesFijadas)
+      : vaciaHtml(f, variasMaquinas, conViejas.has(f.clave))).join('') +
+    tarjetasHtml(grupos.filter((t) => !clavesFijadas.has(t.clave)), ahora, variasMaquinas));
+  document.getElementById('vacio').hidden = fijadas.length + nivel.grilla.length + nivel.plegadas.length + nivel.viejas.length > 0;
+
+  document.getElementById('plegadas').hidden = !nivel.plegadas.length;
+  pintar('grilla-plegadas', tarjetasHtml(agrupar(nivel.plegadas), ahora, variasMaquinas, clavesFijadas));
+  document.querySelector('#plegadas summary').textContent =
+    `${plural(nivel.plegadas.length, 'sesión inactiva', 'sesiones inactivas')} de ${datos.horasInactivasVisibles} a ${datos.horasInactivasPlegadas} h`;
+
+  document.getElementById('viejas').hidden = !nivel.viejas.length;
+  document.querySelector('#viejas .rotulo').textContent = `más de ${datos.horasInactivasPlegadas} h sin actividad:`;
+  pintar('lista-viejas', nombresHtml(nivel.viejas, ahora, variasMaquinas));
+
+  const partes = [];
+  if (cuenta.esperando) partes.push(`<span class="w">⚠ ${cuenta.esperando} ${cuenta.esperando === 1 ? 'espera' : 'esperan'}</span>`);
+  if (cuenta.termino) partes.push(`<span class="d">✓ ${cuenta.termino} ${cuenta.termino === 1 ? 'terminó' : 'terminaron'}</span>`);
+  if (cuenta.trabajando) partes.push(`<span class="r">⟳ ${cuenta.trabajando} trabajando</span>`);
+  document.getElementById('resumen').innerHTML = partes.join('') || '<span class="calma">nada pendiente</span>';
+
+  document.getElementById('maquinas').innerHTML = datos.maquinas.map((m) =>
+    m.ok ? `<span><span class="punto-maq" style="--maq:${colorDe(m.maquina)}"></span>${esc(m.maquina)}</span>`
+      : `<span class="maq-caida" title="${esc([m.error, m.ayuda].filter(Boolean).join('. '))}">○ ${esc(m.maquina)}: sin conexión${m.ultimoOk ? ` desde las ${horaCorta(m.ultimoOk)}` : ''}</span>`).join('');
+
+  // El registro de sesiones es un formato interno de Claude Code: con una versión no probada, avisar.
+  const sinProbar = new Set();
+  let desconocidos = 0;
+  for (const m of datos.maquinas) {
+    for (const s of m.sesiones ?? []) {
+      if (s.version && !datos.versionesProbadas.includes(s.version)) sinProbar.add(variasMaquinas ? `${s.version} (${m.maquina})` : s.version);
+      if (s.estado === 'desconocido') desconocidos++;
+    }
+  }
+  const version = document.getElementById('version');
+  version.hidden = !sinProbar.size && !desconocidos;
+  version.textContent = sinProbar.size
+    ? `⚠ Claude Code ${[...sinProbar].join(', ')}: sin probar`
+    : `⚠ ${plural(desconocidos, 'estado desconocido', 'estados desconocidos')}`;
+  version.title = `El tablero lee un archivo interno de Claude Code, probado con la versión ${datos.versionesProbadas.join(', ')}. ` +
+    'Si una actualización lo cambió, los estados pueden verse mal.';
+
+  // Visible en la pestaña del navegador aunque el tablero esté detrás de otra.
+  const pendientes = cuenta.esperando + cuenta.termino;
+  document.title = pendientes ? `(${pendientes}) Sesiones Claude` : 'Sesiones Claude';
+  const color = cuenta.esperando ? '%23e8a33d' : cuenta.termino ? '%234cc777' : '%238c939d';
+  document.getElementById('icono').href = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='${color}'/></svg>`;
+}
+
+async function api(ruta, cuerpo) {
+  const r = await fetch(ruta, {
+    method: cuerpo ? 'POST' : 'GET',
+    headers: { 'X-Tablero': '1', ...(cuerpo && { 'Content-Type': 'application/json' }) },
+    body: cuerpo && JSON.stringify(cuerpo),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ?? r.statusText);
+  return j;
+}
+
+// Dos clases de aviso: el de conexión lo limpia el próximo refresco que funcione; el de una acción
+// (un click que no pudo traer la ventana) queda unos segundos, para que llegue a leerse.
+let avisoDeConexion = false;
+let avisoTimer = null;
+function aviso(texto, deConexion = false) {
+  const a = document.getElementById('aviso');
+  clearTimeout(avisoTimer);
+  a.textContent = texto ?? '';
+  a.style.display = texto ? 'block' : 'none';
+  avisoDeConexion = !!texto && deConexion;
+  if (texto && !deConexion) avisoTimer = setTimeout(() => aviso(null), 8000);
+}
+
+async function refrescar() {
+  try {
+    datos = await api('/api/tablero');
+    paginaCargada ??= datos.pagina;
+    if (datos.pagina !== paginaCargada) return location.reload();
+    if (avisoDeConexion) aviso(null);
+  } catch (e) {
+    aviso(`Sin conexión con el agente (${e.message}). Reintentando…`, true);
+  }
+  render();
+}
+
+// Si dejaste abierto el desplegable, sigue abierto al recargar.
+const desplegable = document.getElementById('plegadas');
+try { desplegable.open = localStorage.getItem('plegadasAbierto') === '1'; } catch {}
+desplegable.addEventListener('toggle', () => {
+  try { localStorage.setItem('plegadasAbierto', desplegable.open ? '1' : '0'); } catch {}
+});
+
+async function guardarFijadas(lista) {
+  datos.fijadas = lista;
+  render();
+  try {
+    datos.fijadas = (await api('/api/fijadas', { fijadas: lista })).fijadas;
+  } catch (e) {
+    aviso(`No pude guardar las tarjetas fijadas: ${e.message}`);
+  }
+}
+
+function alternarFijada(b) {
+  const lista = datos.fijadas ?? [];
+  const sin = lista.filter((f) => claveDe(f.maquina, f.carpeta) !== b.dataset.clave);
+  const { maquina, carpeta, proyecto } = b.dataset;
+  guardarFijadas(sin.length < lista.length ? sin : [...lista, { maquina, carpeta, proyecto }]);
+}
+
+// Las fijadas se reordenan arrastrándolas: soltar sobre la mitad izquierda de otra la deja antes.
+const fijadaBajo = (ev) => ev.target.closest?.('#grilla .tarjeta.fijada');
+const antesDe = (ev, t) => { const r = t.getBoundingClientRect(); return ev.clientX < r.left + r.width / 2; };
+function limpiarMarcas() {
+  document.querySelectorAll('.soltar-antes, .soltar-despues, .arrastrando')
+    .forEach((el) => el.classList.remove('soltar-antes', 'soltar-despues', 'arrastrando'));
+}
+
+document.addEventListener('dragstart', (ev) => {
+  const t = fijadaBajo(ev);
+  if (!t) return ev.preventDefault();
+  arrastrando = t.dataset.clave;
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', arrastrando);
+  t.classList.add('arrastrando');
+});
+document.addEventListener('dragover', (ev) => {
+  const t = fijadaBajo(ev);
+  if (!arrastrando || !t || t.dataset.clave === arrastrando) return;
+  ev.preventDefault();
+  document.querySelectorAll('.soltar-antes, .soltar-despues').forEach((el) => el.classList.remove('soltar-antes', 'soltar-despues'));
+  t.classList.add(antesDe(ev, t) ? 'soltar-antes' : 'soltar-despues');
+});
+document.addEventListener('drop', (ev) => {
+  const t = fijadaBajo(ev);
+  if (!arrastrando || !t || t.dataset.clave === arrastrando) return;
+  ev.preventDefault();
+  const lista = datos.fijadas ?? [];
+  const movida = lista.find((f) => claveDe(f.maquina, f.carpeta) === arrastrando);
+  const resto = lista.filter((f) => f !== movida);
+  const i = resto.findIndex((f) => claveDe(f.maquina, f.carpeta) === t.dataset.clave);
+  resto.splice(antesDe(ev, t) ? i : i + 1, 0, movida);
+  arrastrando = null;
+  limpiarMarcas();
+  guardarFijadas(resto);
+});
+document.addEventListener('dragend', () => {
+  arrastrando = null;
+  limpiarMarcas();
+  render();
+});
+
+document.addEventListener('click', async (ev) => {
+  const pin = ev.target.closest('.pin');
+  if (pin) return alternarFijada(pin);
+  const t = ev.target.closest('.tarjeta.enfocable, .nombre.enfocable');
+  if (!t?.dataset.id) return;
+  // Click en una fila: esa sesión. En el resto de la tarjeta: la más urgente.
+  const fila = ev.target.closest('.fila[data-id]');
+  const sessionId = fila?.dataset.id || t.dataset.id;
+  enfocando = t.dataset.carpeta;
+  render();
+  try {
+    const r = await api('/api/enfocar', { sessionId });
+    const AVISOS = {
+      'sin-foco': 'Windows no dejó traer la ventana al frente: buscala en la barra de tareas, debería estar titilando.',
+      'no-encontrada': 'No encontré la ventana de esa terminal.',
+      ambigua: 'Hay varias ventanas de Git Bash con Claude Code y no sé cuál es la de esta sesión.',
+    };
+    if (AVISOS[r.resultado]) aviso(AVISOS[r.resultado]);
+    await refrescar();
+  } catch (e) {
+    aviso(`No pude traer la ventana al frente: ${e.message}`);
+  } finally {
+    setTimeout(() => { enfocando = null; render(); }, 1200);
+  }
+});
+
+// La franja "Hoy", en la cabecera: totales del día, cada 30 s.
+async function refrescarHoy() {
+  try {
+    const r = await api('/api/metricas');
+    const t = r.totales;
+    const partes = [
+      ...(r.fuentes.actividadActiva ? [`vos <b>${duracion(t.tuMs)}</b>`] : []),
+      `claude <b>${duracion(t.activoMs)}</b>`,
+      `te esperó <b>${duracion(t.conEsperaMs)}</b>`,
+    ];
+    if (t.respuestaMedianaMs != null) partes.push(`respuesta p50 <b>${duracion(t.respuestaMedianaMs)}</b>`);
+    if (t.aprobaciones) partes.push(`<b>${t.aprobaciones}</b> ${t.aprobaciones === 1 ? 'aprobación' : 'aprobaciones'}`);
+    document.getElementById('hoy').innerHTML = `hoy · ${partes.join(' · ')}`;
+  } catch {} // si falla, queda lo último que se mostró
+}
+
+// La nota sobre el permiso que pide VS Code la primera vez: se muestra hasta que la descartás.
+const notaUri = document.getElementById('nota-uri');
+try { notaUri.hidden = localStorage.getItem('notaUriVista') === '1'; } catch { notaUri.hidden = false; }
+if (new URLSearchParams(location.search).has('limpio')) notaUri.hidden = true; // para capturas y videos
+document.getElementById('nota-uri-ok').addEventListener('click', () => {
+  notaUri.hidden = true;
+  try { localStorage.setItem('notaUriVista', '1'); } catch {}
+});
+
+// Al pasar el mouse por una línea de tiempo: qué es, qué pasaba en ese minuto y el total de cada estado.
+const COLORES_LINEA = { r: 'var(--trabaja)', w: 'var(--espera)', d: 'var(--termino)', i: 'var(--linea-vacia)' };
+const tipLinea = document.getElementById('tip-linea');
+document.addEventListener('mousemove', (ev) => {
+  const l = ev.target.closest?.('.linea[data-linea]');
+  if (!l) return void (tipLinea.hidden = true);
+  const linea = l.dataset.linea;
+  const caja = l.getBoundingClientRect();
+  const k = Math.min(59, Math.max(0, Math.floor(((ev.clientX - caja.left) / caja.width) * 60)));
+  const atras = 60 - k; // el minuto k empezó hace (60 - k) minutos
+  const minutos = {};
+  for (const c of linea) minutos[c] = (minutos[c] ?? 0) + 1;
+  const marca = (c) => `<i style="background:${COLORES_LINEA[c]}"></i>`;
+  tipLinea.innerHTML =
+    '<div class="t">Última hora de esta sesión, minuto a minuto</div>' +
+    `<div class="ahora">${marca(linea[k])}${horaCorta(Date.now() - atras * 60e3)} · hace ${atras} min · ${NOMBRES_LINEA[linea[k]]}</div>` +
+    `<div class="totales">${['r', 'w', 'd', 'i'].filter((c) => minutos[c]).map((c) => `<span>${marca(c)}${NOMBRES_LINEA[c]} ${minutos[c]} min</span>`).join('')}</div>` +
+    '<div class="eje">← hace 1 h · · · ahora →</div>';
+  tipLinea.hidden = false;
+  const ancho = tipLinea.offsetWidth;
+  const alto = tipLinea.offsetHeight;
+  tipLinea.style.left = `${Math.max(8, Math.min(ev.clientX + 14, innerWidth - ancho - 8))}px`;
+  // Si abajo no entra (una tarjeta al pie de la pantalla), va arriba del cursor.
+  tipLinea.style.top = `${ev.clientY + 16 + alto > innerHeight - 8 ? Math.max(8, ev.clientY - alto - 12) : ev.clientY + 16}px`;
+});
+
+refrescar();
+setInterval(refrescar, REFRESCO_MS);
+refrescarHoy();
+setInterval(refrescarHoy, 30e3);
+</script>
+</body>
+</html>
