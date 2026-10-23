@@ -31,6 +31,8 @@ function limpiarSesion(s) {
     anfitrion: texto(s.anfitrion, 40),
     modo: texto(s.modo, 40),
     linea: typeof s.linea === 'string' && /^[rwdi]{60}$/.test(s.linea) ? s.linea : null,
+    contexto: Number.isFinite(s.contexto?.usados) && Number.isFinite(s.contexto?.ventana) && s.contexto.ventana > 0
+      ? { usados: Math.max(0, s.contexto.usados), ventana: s.contexto.ventana } : null,
     version: texto(s.version, 40),
     enfocable: false, // traer al frente solo funciona con las sesiones de esta PC
   };

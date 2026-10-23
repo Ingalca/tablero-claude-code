@@ -84,6 +84,7 @@ async function sesiones(cfg) {
       anfitrion,
       enfocable: origen === 'vscode' || origen === 'terminal',
       modo: inf?.modo ?? null,
+      contexto: inf?.contexto ?? null,
       linea: lineas.get(e.sessionId) ?? null,
       version: typeof e.version === 'string' ? e.version : null,
     });

@@ -12,7 +12,9 @@ Desde la red solo se puede leer, y solo desde loopback, una red privada o Tailsc
   `ultimoMensaje`, `pid`, `origen` (`vscode`, `terminal`, `escritorio`), `anfitrion` (para una
   terminal: `WindowsTerminal`, `mintty`, `conhost`, `Code`), `enfocable`, `modo` (el
   `permissionMode` de tu último pedido), `linea` (la última hora, 60 letras, una por minuto: `r`
-  trabajando, `w` esperando, `d` terminó, `i` inactiva) y `version` (de Claude Code).
+  trabajando, `w` esperando, `d` terminó, `i` inactiva), `contexto` (`{ usados, ventana }` en
+  tokens: lo que ocupa la conversación y la ventana de su modelo, o `null` si todavía no hay datos)
+  y `version` (de Claude Code).
 
 ## Solo desde esta PC
 

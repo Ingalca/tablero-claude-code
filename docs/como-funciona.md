@@ -64,6 +64,12 @@ De ahí salen:
 - **Los pedidos tuyos**: registros `user` con `turnOrigin: "human"`; en sesiones viejas, con
   `promptSource: "sdk"`. VS Code agrega adelante bloques `<ide_selection>` y `<ide_opened_file>` que
   no son parte del pedido.
+- **El contexto**: la entrada del último mensaje de Claude (`input_tokens`, más las de caché escrita
+  y leída), que es lo que ocupa la conversación en ese momento. No cuentan los de subagentes
+  (`isSidechain`) ni los mensajes `<synthetic>`; después de un `compact_boundary`, vale su
+  `postTokens`. La ventana sale del modelo: 1 M en los actuales (Fable, Opus 4.6 en adelante,
+  Sonnet 5 y 4.6, o un modelo con `[1m]`), 200 K en Haiku y los anteriores. El transcript no la trae,
+  así que un modelo desconocido que ya pasó los 200 K se toma como de 1 M.
 
 **Una aprobación pendiente no deja rastro en el transcript**: queda un `tool_use` sin su
 `tool_result`, igual que un comando largo en curso. Por eso el estado sale del registro.

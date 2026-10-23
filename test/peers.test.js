@@ -88,3 +88,10 @@ test('lo que manda otra PC se valida: no puede meter HTML ni datos con otra form
   assert.deepEqual(m.horas.map((h) => h.hora), [9]);
   assert.throws(() => peers.limpiarMetricas(null));
 });
+
+test('el contexto que manda otra PC: solo números, o nada', () => {
+  assert.deepEqual(peers.limpiarSesion({ id: 'a', contexto: { usados: 412000, ventana: 1000000 } }).contexto, { usados: 412000, ventana: 1000000 });
+  assert.equal(peers.limpiarSesion({ id: 'a', contexto: { usados: '<b>', ventana: 1000000 } }).contexto, null);
+  assert.equal(peers.limpiarSesion({ id: 'a', contexto: { usados: 5, ventana: 0 } }).contexto, null);
+  assert.equal(peers.limpiarSesion({ id: 'a' }).contexto, null);
+});

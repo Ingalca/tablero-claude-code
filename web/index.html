@@ -122,6 +122,11 @@
   .estado.inactiva, .estado.desconocido { color: var(--apagado); }
   .meta { grid-column: 2 / 4; display: flex; gap: 6px; flex-wrap: wrap; }
   .meta span { font: 12px var(--mono); color: var(--tenue); background: var(--chip); border: 1px solid var(--borde); border-radius: 3px; padding: 0 6px; white-space: nowrap; }
+  .meta .contexto { display: inline-flex; align-items: center; gap: 6px; cursor: help; }
+  .meta .contexto i { display: inline-block; width: 34px; height: 4px; border-radius: 2px; background: var(--borde); overflow: hidden; }
+  .meta .contexto b { display: block; height: 100%; background: var(--tenue); }
+  .meta .contexto.alto { color: var(--texto); font-weight: 700; }
+  .meta .contexto.alto b { background: var(--texto); }
   .mensaje { grid-column: 2 / 4; color: var(--tenue); font-size: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* Línea de tiempo de la última hora: un tramo por estado, ancho proporcional a sus minutos */
   /* La zona de la línea es más alta que la línea, para que sea fácil apuntarle con el mouse */
@@ -305,8 +310,18 @@ function metaHtml(s) {
   else if (s.origen === 'escritorio') out.push(['app de escritorio', 'Sesión de la app de escritorio de Claude: no se puede traer al frente desde el tablero']);
   else if (s.origen) out.push([s.origen, '']);
   if (s.modo) out.push([MODOS[s.modo] ?? s.modo, 'Modo de permisos de tu último pedido']);
-  if (!out.length) return '';
-  return `<div class="meta">${out.map(([texto, ayuda]) => `<span title="${esc(ayuda)}">${esc(texto)}</span>`).join('')}</div>`;
+  const ctx = contextoHtml(s.contexto);
+  if (!out.length && !ctx) return '';
+  return `<div class="meta">${out.map(([texto, ayuda]) => `<span title="${esc(ayuda)}">${esc(texto)}</span>`).join('')}${ctx}</div>`;
+}
+
+// Cuánto de la ventana de contexto usa la sesión. Desde el 80 % se resalta: Claude compacta cerca del límite.
+const tokens = (n) => (n >= 999950 ? `${(n / 1e6).toLocaleString('es', { maximumFractionDigits: 1 })} M` : `${Math.round(n / 1e3)} k`);
+function contextoHtml(c) {
+  if (!c || !Number.isFinite(c.usados) || !(c.ventana > 0)) return '';
+  const pct = Math.min(100, Math.round((c.usados / c.ventana) * 100));
+  const ayuda = `Contexto: ${tokens(c.usados)} de ${tokens(c.ventana)} tokens. Cerca del límite, Claude compacta la conversación.`;
+  return `<span class="contexto${pct >= 80 ? ' alto' : ''}" title="${esc(ayuda)}">contexto ${pct}%<i><b style="width:${pct}%"></b></i></span>`;
 }
 
 // La última hora, minuto a minuto (r trabaja, w espera, d terminó, i inactiva): tramos con ancho proporcional.

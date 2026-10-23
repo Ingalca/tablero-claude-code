@@ -121,3 +121,35 @@ test('métricas por hora: suman exactamente lo mismo que por día', async () => 
   }
   assert.ok(r.horas.every((h) => h.hora >= 0 && h.hora < 24));
 });
+
+// Contexto: la entrada del último mensaje de Claude (con caché), en la ventana de su modelo.
+const CONTEXTO = '77777777-7777-7777-7777-777777777777';
+const conUso = (t, modelo, usados, extra = {}) => ({
+  t, type: 'assistant', ...extra,
+  message: { id: `c-${t}`, model: modelo, role: 'assistant', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1000, cache_creation_input_tokens: 4000, cache_read_input_tokens: usados - 5000, output_tokens: 300 } },
+});
+test('contexto: la entrada del último mensaje, sin subagentes ni mensajes sintéticos', () => {
+  escribirTranscript(claude, 'd:\contexto', CONTEXTO, [
+    pedido(t0, 'Hola'),
+    conUso(t0 + M, 'claude-opus-5-5', 412000),
+    conUso(t0 + 2 * M, 'claude-haiku-4-5', 90000, { isSidechain: true }),
+    conUso(t0 + 3 * M, '<synthetic>', 1),
+  ]);
+  assert.deepEqual(transcript.info(CONTEXTO, 'd:\contexto').contexto, { usados: 412000, ventana: 1000000 });
+});
+test('contexto: después de compactar, lo que quedó', () => {
+  escribirTranscript(claude, 'd:\contexto', CONTEXTO, [
+    pedido(t0, 'Hola'),
+    conUso(t0 + M, 'claude-opus-5-5', 960000),
+    { t: t0 + 2 * M, type: 'system', subtype: 'compact_boundary', compactMetadata: { trigger: 'auto', preTokens: 960000, postTokens: 16000 } },
+  ]);
+  assert.deepEqual(transcript.info(CONTEXTO, 'd:\contexto').contexto, { usados: 16000, ventana: 1000000 });
+});
+test('ventana: 1M en los modelos actuales, 200K en Haiku y en los que no superaron eso', () => {
+  for (const m of ['claude-fable-5-1', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-6', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-sonnet-4-5[1m]']) {
+    assert.equal(transcript.ventanaDe(m, 1000), 1000000, m);
+  }
+  assert.equal(transcript.ventanaDe('claude-haiku-4-5', 1000), 200000);
+  assert.equal(transcript.ventanaDe('claude-sonnet-4-5', 150000), 200000);
+  assert.equal(transcript.ventanaDe('modelo-nuevo', 250000), 1000000); // si pasó los 200K, la ventana es mayor
+});

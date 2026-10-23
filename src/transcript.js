@@ -96,13 +96,34 @@ function buscarModoHaciaAtras(ruta, hasta, maximo = 32 * 1024 * 1024) {
   return null;
 }
 
+// Ventana de contexto por modelo: 1M en los actuales, 200K en Haiku y los anteriores. Un modelo que
+// no está en la lista y ya pasó los 200K tiene que tener la de 1M (si no, no habría llegado).
+const DE_UN_MILLON = /^claude-(fable|mythos|opus-5|opus-4-[678]|sonnet-5|sonnet-4-6)|\[1m\]/i;
+function ventanaDe(modelo, usados) {
+  return DE_UN_MILLON.test(modelo ?? '') || usados > 200000 ? 1000000 : 200000;
+}
+
+// Lo que tiene cargado la sesión: la entrada del último mensaje de Claude (sin caché, escritura y
+// lectura de caché). Tras una compactación, lo que quedó (postTokens) hasta el mensaje siguiente.
+function usoDeContexto(r, previo) {
+  if (r.type === 'system' && r.subtype === 'compact_boundary' && Number.isFinite(r.compactMetadata?.postTokens)) {
+    return { usados: r.compactMetadata.postTokens, modelo: previo?.modelo ?? null };
+  }
+  const u = r.type === 'assistant' && !r.isSidechain && r.message?.model !== '<synthetic>' ? r.message?.usage : null;
+  if (!u) return previo;
+  const usados = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+  return usados > 0 ? { usados, modelo: r.message.model ?? null } : previo;
+}
+
 function analizar(ruta, tamano) {
   const regs = registros(leerTramo(ruta, Math.max(0, tamano - COLA), COLA), tamano > COLA);
   // modo: el permissionMode de tu último pedido (auto, acceptEdits, plan, default…). Si lo cambiás con
   // Shift+Tab sin escribir nada, el transcript no se entera hasta el pedido siguiente.
   const info = { titulo: null, ultimoMensaje: null, ultimaMarca: null, modo: null, huboTurno: tamano > COLA };
   let tituloIa = null;
+  let uso = null;
   for (const r of regs) {
+    uso = usoDeContexto(r, uso);
     if (r.type === 'custom-title' && r.customTitle) info.titulo = r.customTitle;
     if (r.type === 'ai-title' && r.aiTitle) tituloIa = r.aiTitle;
     const msj = textoDeAsistente(r);
@@ -112,6 +133,7 @@ function analizar(ruta, tamano) {
     if (r.timestamp) info.ultimaMarca = Date.parse(r.timestamp) || info.ultimaMarca;
   }
   info.titulo ??= tituloIa;
+  info.contexto = uso ? { usados: uso.usados, ventana: ventanaDe(uso.modelo, uso.usados) } : null;
   if (!info.modo && tamano > COLA) info.modo = buscarModoHaciaAtras(ruta, tamano - COLA);
   if (!info.titulo) {
     // la cabeza tiene el primer pedido y, si la renombraste temprano, el título puesto a mano
@@ -124,7 +146,8 @@ function analizar(ruta, tamano) {
   return info;
 }
 
-// Devuelve { titulo, ultimoMensaje, ultimaMarca, huboTurno } o null si la sesión todavía no tiene transcript.
+// Devuelve { titulo, ultimoMensaje, ultimaMarca, modo, huboTurno, contexto: { usados, ventana } | null }
+// o null si la sesión todavía no tiene transcript.
 function info(sessionId, cwd) {
   const ruta = ubicar(sessionId, cwd);
   if (!ruta) return null;
@@ -142,4 +165,4 @@ function info(sessionId, cwd) {
   return nueva;
 }
 
-module.exports = { info, esPedidoHumano };
+module.exports = { info, esPedidoHumano, ventanaDe };

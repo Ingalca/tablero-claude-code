@@ -3,16 +3,21 @@
 Tablero local con el estado de todas tus sesiones de Claude Code, en VS Code o en la terminal:
 cuáles están trabajando, cuáles te piden una aprobación y cuáles terminaron y te están esperando.
 
-Con varias sesiones en paralelo, suele pasar que una lleve media hora esperando tu aprobación sin
-que te enteres. Además, tenés que estar recordando cuál ventana era de cuál proyecto. El tablero te
-muestra de un vistazo cuál te necesita y con un clic la traés al frente. Ideal para tener abierto en
-un segundo monitor, por ejemplo.
-
 ![Recorrido de 50 segundos: el tablero marca dos sesiones que piden aprobación; un clic lleva a VS Code, se aprueba y se vuelve; otra sesión terminó, se lee su respuesta y se le pide el paso siguiente](docs/img/tablero.gif)
 
 > **Proyecto no relacionado con Anthropic.** No está afiliado a Anthropic ni tiene su respaldo. Lee archivos internos
 > de Claude Code que pueden cambiar con cualquier actualización; el tablero avisa cuando detecta una
 > versión con la que no se probó.
+
+## ¿Por qué?
+
+Claude Code no tiene una vista de todas tus sesiones juntas. Con varias en paralelo, una puede
+llevar media hora esperando tu aprobación sin que te enteres, y para saber en qué está cada una
+tenés que ir ventana por ventana, recordando cuál era de qué proyecto. Si además trabajás en más de
+una PC, ni siquiera las ves.
+
+Este tablero resuelve eso: de un vistazo ves cuál te necesita, y con un clic la traés al frente.
+Ideal para tenerlo abierto en un segundo monitor.
 
 ## Qué hace
 
@@ -20,6 +25,8 @@ un segundo monitor, por ejemplo.
   con su estado, el título, el último mensaje de Claude y hace cuánto cambió. Arriba va lo que necesita atención.
 - **La última hora de cada sesión**, en una línea de tiempo fina: cuándo trabajó, cuándo esperó una
   aprobación y cuándo terminó, aunque no estuvieras mirando. Al pasar el mouse, muestra el minuto a minuto.
+- **Cuánto contexto lleva cada sesión**: el porcentaje de la ventana de contexto que ya ocupa la
+  conversación, con una barrita. Desde el 80 % se resalta: Claude está cerca de compactarla.
 - **Click en una tarjeta**: trae al frente la ventana de VS Code o terminal. Si es de VS Code, además abre la pestaña 
   de la sesión que te espera.
 - **Varias PCs**: cada PC ve las sesiones de todas, y cada máquina tiene su color (una franja arriba
